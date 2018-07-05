@@ -4,19 +4,6 @@ using UnityEngine;
 
 public class InputController : MonoBehaviour
 {
-
-    //public struct MousePosition
-    //{
-    //    public float MousePositionX;
-    //    public float MousePositionY;
-
-    //    public MousePosition(float pX, float pY)
-    //    {
-    //        MousePositionX = pX;
-    //        MousePositionY = pY;
-    //    }
-    //}
-
     public Transform TargetObject;
     public Camera MainCamera;
 
@@ -25,6 +12,8 @@ public class InputController : MonoBehaviour
     private int LEFT_MOUSE_NULL = 0;
     private int LEFT_MOUSE_DOWN = 1;
     private int LEFT_MOUSE_RELEASE = 2;
+
+    //private Transform tempCameraTrans;
 
     private int LeftMouseState = 0;
     private Vector3 CameraBeginPosition;
@@ -36,6 +25,10 @@ public class InputController : MonoBehaviour
     private float MouseMoveX = 0;
     private float MouseMoveY = 0;
 
+    private float _acumulateY = 0;
+    public float MAX_Y = 15f;
+    public float Min_y = -15f;
+
     private bool _resetingCamera = false;
     private bool _isHitFurniture = false;
     private bool _inspectFurniture = false;
@@ -43,10 +36,23 @@ public class InputController : MonoBehaviour
     RaycastHit _hitInfo;
     RaycastHit _ClickhitInfo;
 
+    private enum MouseButton
+    {
+        LEFT_MOUSE_BUTTON = 0,
+        RIGHT_MOUSE_BUTTON = 1,
+        MIDDLE_MOUSE_BUTTON = 2
+    }
+
 
     // Use this for initialization
     void Start()
     {
+        //tempCameraTrans = MainCamera.transform.Find("tempCameraTrans");
+        //if(tempCameraTrans == null)
+        //{
+        //    tempCameraTrans = Instantiate(new GameObject(), MainCamera.transform.position, MainCamera.transform.rotation).transform;
+        //    tempCameraTrans.name = "tempCameraTrans";
+        //}
         CameraBeginPosition = MainCamera.transform.position;
         CameraBeginRotation = MainCamera.transform.rotation;
     }
@@ -84,61 +90,20 @@ public class InputController : MonoBehaviour
 #endif
             if (_hitInfo.collider.gameObject.tag == ColorController.TARGET_TAG)
             {
-                _isHitFurniture = true;
+                //_isHitFurniture = true;
             }
         }
 
-        if (Input.GetKeyDown(KeyCode.Mouse0))
-        {
-            _resetingCamera = false;
-            _inspectFurniture = false;
-            if (_isHitFurniture)
-            {
-                CameraLastPosition = MainCamera.transform.position;
-                _ClickhitInfo = _hitInfo;
-                _inspectFurniture = true;
-            }
-            else
-            {
-                LeftMouseState = LEFT_MOUSE_DOWN;
-                MouseLatestPosition = Input.mousePosition;
-                CameraLatestPosition = MainCamera.transform.position;
-            }
-        }
+        
 
-        if (LeftMouseState == LEFT_MOUSE_DOWN)
-        {
-            MouseMovePosition = Input.mousePosition;
-            MainCamera.transform.RotateAround(TargetObject.position, Vector3.up, (MouseMovePosition.x - MouseLatestPosition.x) * Time.deltaTime * ROTATE_PARA);
-            if (Vector3.Angle(Vector3.up, CameraLatestPosition - TargetObject.position) < 5.0f)
-            {
-                if (MouseMovePosition.y - MouseLatestPosition.y > 0)
-                {
-                    MainCamera.transform.RotateAround(TargetObject.position, Vector3.Cross(Vector3.up, CameraLatestPosition - TargetObject.position), (MouseMovePosition.y - MouseLatestPosition.y) * Time.deltaTime * ROTATE_PARA);
-                }
-
-            }
-            else if (MainCamera.transform.position.y < 1)
-            {
-                if (MouseMovePosition.y - MouseLatestPosition.y < 0)
-                {
-                    MainCamera.transform.RotateAround(TargetObject.position, Vector3.Cross(Vector3.up, CameraLatestPosition - TargetObject.position), (MouseMovePosition.y - MouseLatestPosition.y) * Time.deltaTime * ROTATE_PARA);
-                }
-            }
-            else
-            {
-                MainCamera.transform.RotateAround(TargetObject.position, Vector3.Cross(Vector3.up, CameraLatestPosition - TargetObject.position), (MouseMovePosition.y - MouseLatestPosition.y) * Time.deltaTime * ROTATE_PARA);
-            }
-            MainCamera.transform.rotation = Quaternion.Euler(MainCamera.transform.rotation.eulerAngles.x, MainCamera.transform.rotation.eulerAngles.y, 0);
-        }
-
-        if (Input.GetKeyUp(KeyCode.Mouse0))
-        {
-            LeftMouseState = LEFT_MOUSE_RELEASE;
-            //MouseBeginPosition = new Vector3(0,0,0);
-            MouseLatestPosition = new Vector3(0, 0, 0);
-            CameraLatestPosition = new Vector3(0, 0, 0);
-        }
+        CheckLeftMouseClick();
+        //if (Input.GetKeyUp(KeyCode.Mouse0))
+        //{
+        //    LeftMouseState = LEFT_MOUSE_RELEASE;
+        //    //MouseBeginPosition = new Vector3(0,0,0);
+        //    MouseLatestPosition = new Vector3(0, 0, 0);
+        //    CameraLatestPosition = new Vector3(0, 0, 0);
+        //}
 
         if (Input.GetAxis("Mouse ScrollWheel") < 0)
         {
@@ -155,11 +120,11 @@ public class InputController : MonoBehaviour
 
     void LateUpdate()
     {
-        if (LeftMouseState == LEFT_MOUSE_DOWN)
-        {
+        //if (LeftMouseState == LEFT_MOUSE_DOWN)
+        //{
             MouseLatestPosition = Input.mousePosition;
             CameraLatestPosition = MainCamera.transform.position;
-        }
+        //}
     }
 
     public void ResetCamera()
@@ -169,5 +134,84 @@ public class InputController : MonoBehaviour
         Debug.Log("ResetCamera");
         Debug.Log("CameraBeginTransform.position = " + CameraBeginPosition);
         Debug.Log("CameraBeginTransform.rotation = " + CameraBeginRotation);
+    }
+
+    /// <summary>
+    /// 检查鼠标左键是否被按下
+    /// check left key of mouse has been Click down 
+    /// </summary>
+    private void CheckLeftMouseClick()
+    {
+        if (Input.GetMouseButton((int)MouseButton.LEFT_MOUSE_BUTTON))
+        {
+            _resetingCamera = false;
+            _inspectFurniture = false;
+            if (_isHitFurniture)
+            {
+                CameraLastPosition = MainCamera.transform.position;
+                _ClickhitInfo = _hitInfo;
+                _inspectFurniture = true;
+            }
+            else
+            {
+                //LeftMouseState = LEFT_MOUSE_DOWN;
+                //MouseLatestPosition = Input.mousePosition;
+                //CameraLatestPosition = MainCamera.transform.position;
+                //tempCameraTrans.RotateAround(TargetObject.position, Vector3.Cross(Vector3.up, CameraLatestPosition - TargetObject.position), Input.GetAxis("Mouse Y") * ROTATE_PARA);
+                
+                _acumulateY += Input.GetAxis("Mouse Y");
+                Debug.Log(_acumulateY);
+                if (_acumulateY > MAX_Y || _acumulateY < Min_y)
+                {
+                    return;
+                }
+                if (Vector3.Angle(Vector3.up, MainCamera.transform.position - TargetObject.position) < 5.0f || _acumulateY > MAX_Y)
+                {
+                    if (Input.GetAxis("Mouse Y") > 0)
+                    {
+                        MainCamera.transform.RotateAround(TargetObject.position, Vector3.Cross(Vector3.up, CameraLatestPosition - TargetObject.position), Input.GetAxis("Mouse Y") * ROTATE_PARA);
+                    }
+                }
+                else if(MainCamera.transform.position.y < 1)
+                {
+                    if (Input.GetAxis("Mouse Y") < 0)
+                    {
+                        MainCamera.transform.RotateAround(TargetObject.position, Vector3.Cross(Vector3.up, CameraLatestPosition - TargetObject.position), Input.GetAxis("Mouse Y") * ROTATE_PARA);
+                    }
+                }
+                else
+                {
+                    MainCamera.transform.RotateAround(TargetObject.position, Vector3.Cross(Vector3.up, CameraLatestPosition - TargetObject.position), Input.GetAxis("Mouse Y") * ROTATE_PARA);
+                }
+                MainCamera.transform.rotation = Quaternion.Euler(MainCamera.transform.rotation.eulerAngles.x, MainCamera.transform.rotation.eulerAngles.y, 0);
+                MainCamera.transform.RotateAround(TargetObject.position, Vector3.up, Input.GetAxis("Mouse X") * ROTATE_PARA);
+            }
+        }
+
+        //if (LeftMouseState == LEFT_MOUSE_DOWN)
+        //{
+        //    MouseMovePosition = Input.mousePosition;
+        //    MainCamera.transform.RotateAround(TargetObject.position, Vector3.up, (MouseMovePosition.x - MouseLatestPosition.x) * Time.deltaTime * ROTATE_PARA);
+        //    if (Vector3.Angle(Vector3.up, CameraLatestPosition - TargetObject.position) < 5.0f)
+        //    {
+        //        if (MouseMovePosition.y - MouseLatestPosition.y > 0)
+        //        {
+        //            MainCamera.transform.RotateAround(TargetObject.position, Vector3.Cross(Vector3.up, CameraLatestPosition - TargetObject.position), (MouseMovePosition.y - MouseLatestPosition.y) * Time.deltaTime * ROTATE_PARA);
+        //        }
+
+        //    }
+        //    else if (MainCamera.transform.position.y < 1)
+        //    {
+        //        if (MouseMovePosition.y - MouseLatestPosition.y < 0)
+        //        {
+        //            MainCamera.transform.RotateAround(TargetObject.position, Vector3.Cross(Vector3.up, CameraLatestPosition - TargetObject.position), (MouseMovePosition.y - MouseLatestPosition.y) * Time.deltaTime * ROTATE_PARA);
+        //        }
+        //    }
+        //    else
+        //    {
+        //        MainCamera.transform.RotateAround(TargetObject.position, Vector3.Cross(Vector3.up, CameraLatestPosition - TargetObject.position), (MouseMovePosition.y - MouseLatestPosition.y) * Time.deltaTime * ROTATE_PARA);
+        //    }
+        //    MainCamera.transform.rotation = Quaternion.Euler(MainCamera.transform.rotation.eulerAngles.x, MainCamera.transform.rotation.eulerAngles.y, 0);
+        //}
     }
 }
