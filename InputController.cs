@@ -4,30 +4,41 @@ using UnityEngine;
 
 public class InputController : MonoBehaviour
 {
-    public Transform TargetObject;
+    [Header("目标对象")]
+    public Transform TargetTransform;
+    [Header("主摄像头")]
     public Camera MainCamera;
+    [Header("与目标的偏移量")]
+    public Vector3 TargetOffset = Vector3.zero;
+    [Header("离目标的距离")]
+    public float Distance = 10.0f;
+    [Header("离目标的最小距离")][Range(0f,10f)]
+    public float MinDistance = 2f;
+    [Header("离目标的最远距离")][Range(10f, 30f)]
+    public float MaxDistance = 15f;
+    [Header("放大缩小的速率")][Range(0f,5f)]
+    public float ZoomSpeed = 1f;
+    [Header("X轴的速率")][Range(200f, 300f)]
+    public float XSpeed = 250.0f;
+    [Header("Y轴的速率")][Range(80f, 150f)]
+    public float YSpeed = 120.0f;
+    [Header("是否允许y轴旋转")]
+    public bool AllowRotateY = true;
+    [Header("相机向下最大角度")][Range(-90.0f, 0f)]
+    public float yMinLimit = 0f;
+    [Header("相机向上最大角度")][Range(0.0f, 90f)]
+    public float yMaxLimit = 90f;
 
-    public int ROTATE_PARA = 15;
+    private StaticTransform _cameraBeginTransform;
 
-    private int LEFT_MOUSE_NULL = 0;
-    private int LEFT_MOUSE_DOWN = 1;
-    private int LEFT_MOUSE_RELEASE = 2;
-
-    //private Transform tempCameraTrans;
-
-    private int LeftMouseState = 0;
-    private Vector3 CameraBeginPosition;
-    private Quaternion CameraBeginRotation;
-    private Vector3 CameraLatestPosition;
-    private Vector3 CameraLastPosition;
-    private Vector3 MouseLatestPosition;
-    private Vector3 MouseMovePosition;
-    private float MouseMoveX = 0;
-    private float MouseMoveY = 0;
-
-    private float _acumulateY = 0;
-    public float MAX_Y = 15f;
-    public float Min_y = -15f;
+    private float _x = 0.0f;
+    private float _y = 0.0f;
+    private float _targetX = 0f;
+    private float _targetY = 0f;
+    private float _targetDistance = 0f;
+    private float _xVelocity = 1f;
+    private float _yVelocity = 1f;
+    private float _zoomVelocity = 1f;
 
     private bool _resetingCamera = false;
     private bool _isHitFurniture = false;
@@ -43,32 +54,47 @@ public class InputController : MonoBehaviour
         MIDDLE_MOUSE_BUTTON = 2
     }
 
+    private struct StaticTransform
+    {
+        private Vector3 _position;
+        public Vector3 Position
+        {
+            get{ return _position;}
+        }
+        private Quaternion _rotation;
+        public Quaternion Rotation
+        {
+            get{ return _rotation;}
+        }
+        public StaticTransform(Vector3 pPosition, Quaternion pRotation)
+        {
+            _position = pPosition;
+            _rotation = pRotation;
+        }
+    }
+
 
     // Use this for initialization
     void Start()
     {
-        //tempCameraTrans = MainCamera.transform.Find("tempCameraTrans");
-        //if(tempCameraTrans == null)
-        //{
-        //    tempCameraTrans = Instantiate(new GameObject(), MainCamera.transform.position, MainCamera.transform.rotation).transform;
-        //    tempCameraTrans.name = "tempCameraTrans";
-        //}
-        CameraBeginPosition = MainCamera.transform.position;
-        CameraBeginRotation = MainCamera.transform.rotation;
+        if(MainCamera == null)
+        {
+            MainCamera = Camera.main;
+        }
+
+        _cameraBeginTransform = new StaticTransform(MainCamera.transform.position, MainCamera.transform.rotation);
+
+        var angles = MainCamera.transform.eulerAngles;
+        _targetX = _x = angles.x;
+        _targetY = _y = ClampAngle(angles.y, yMinLimit, yMaxLimit);
+        //_targetDistance = Distance;
+        _targetDistance = Vector3.Distance(MainCamera.transform.position, TargetTransform.position);
     }
 
     // Update is called once per frame
     void Update()
     {
-        if (_resetingCamera)
-        {
-            MainCamera.transform.position = Vector3.Lerp(MainCamera.transform.position, CameraBeginPosition, 0.1f);
-            MainCamera.transform.rotation = Quaternion.Lerp(MainCamera.transform.rotation, CameraBeginRotation, 0.1f);
-            if (MainCamera.transform.position == CameraBeginPosition)
-            {
-                _resetingCamera = false;
-            }
-        }
+        ResetCameraTransform(ref _resetingCamera);
 
         if (_inspectFurniture)
         {
@@ -79,6 +105,9 @@ public class InputController : MonoBehaviour
                 _inspectFurniture = false;
             }
         }
+
+        OnMouseController(TargetTransform, AllowRotateY);
+
 
         _isHitFurniture = false;
         Ray ray = MainCamera.ScreenPointToRay(Input.mousePosition);
@@ -93,125 +122,81 @@ public class InputController : MonoBehaviour
                 //_isHitFurniture = true;
             }
         }
-
-        
-
-        CheckLeftMouseClick();
-        //if (Input.GetKeyUp(KeyCode.Mouse0))
-        //{
-        //    LeftMouseState = LEFT_MOUSE_RELEASE;
-        //    //MouseBeginPosition = new Vector3(0,0,0);
-        //    MouseLatestPosition = new Vector3(0, 0, 0);
-        //    CameraLatestPosition = new Vector3(0, 0, 0);
-        //}
-
-        if (Input.GetAxis("Mouse ScrollWheel") < 0)
-        {
-            if (MainCamera.fieldOfView <= 100)
-                MainCamera.fieldOfView += 2;
-        }
-
-        if (Input.GetAxis("Mouse ScrollWheel") > 0)
-        {
-            if (MainCamera.fieldOfView > 40)
-                MainCamera.fieldOfView -= 2;
-        }
     }
 
     void LateUpdate()
     {
-        //if (LeftMouseState == LEFT_MOUSE_DOWN)
-        //{
-            MouseLatestPosition = Input.mousePosition;
-            CameraLatestPosition = MainCamera.transform.position;
-        //}
+
     }
 
     public void ResetCamera()
     {
         _resetingCamera = true;
-        //MainCamera.transform.SetPositionAndRotation(CameraBeginPosition, CameraBeginRotation);
-        Debug.Log("ResetCamera");
-        Debug.Log("CameraBeginTransform.position = " + CameraBeginPosition);
-        Debug.Log("CameraBeginTransform.rotation = " + CameraBeginRotation);
     }
 
     /// <summary>
-    /// 检查鼠标左键是否被按下
-    /// check left key of mouse has been Click down 
+    /// 响应鼠标所有操作
+    /// In reaction to all mouse controll
     /// </summary>
-    private void CheckLeftMouseClick()
+    private void OnMouseController(Transform pTarget, bool pIsRotateY)
     {
+        if (pTarget == null) return;
+        _resetingCamera = false;
+        _inspectFurniture = false;
+        #region 鼠标滚轮 MouseScrollWheel
+        float tScroll = Input.GetAxis("Mouse ScrollWheel");
+        if (tScroll > 0.0f) _targetDistance -= ZoomSpeed;
+        else if (tScroll < 0.0f)
+            _targetDistance += ZoomSpeed;
+        _targetDistance = Mathf.Clamp(_targetDistance, MinDistance, MaxDistance);
+        #endregion
+
+        #region 鼠标左键 MouseLeftButton
         if (Input.GetMouseButton((int)MouseButton.LEFT_MOUSE_BUTTON))
         {
-            _resetingCamera = false;
-            _inspectFurniture = false;
-            if (_isHitFurniture)
+            _targetX += Input.GetAxis("Mouse X") * XSpeed * 0.02f;
+            if (pIsRotateY)
             {
-                CameraLastPosition = MainCamera.transform.position;
-                _ClickhitInfo = _hitInfo;
-                _inspectFurniture = true;
-            }
-            else
-            {
-                //LeftMouseState = LEFT_MOUSE_DOWN;
-                //MouseLatestPosition = Input.mousePosition;
-                //CameraLatestPosition = MainCamera.transform.position;
-                //tempCameraTrans.RotateAround(TargetObject.position, Vector3.Cross(Vector3.up, CameraLatestPosition - TargetObject.position), Input.GetAxis("Mouse Y") * ROTATE_PARA);
-                
-                _acumulateY += Input.GetAxis("Mouse Y");
-                Debug.Log(_acumulateY);
-                if (_acumulateY > MAX_Y || _acumulateY < Min_y)
-                {
-                    return;
-                }
-                if (Vector3.Angle(Vector3.up, MainCamera.transform.position - TargetObject.position) < 5.0f || _acumulateY > MAX_Y)
-                {
-                    if (Input.GetAxis("Mouse Y") > 0)
-                    {
-                        MainCamera.transform.RotateAround(TargetObject.position, Vector3.Cross(Vector3.up, CameraLatestPosition - TargetObject.position), Input.GetAxis("Mouse Y") * ROTATE_PARA);
-                    }
-                }
-                else if(MainCamera.transform.position.y < 1)
-                {
-                    if (Input.GetAxis("Mouse Y") < 0)
-                    {
-                        MainCamera.transform.RotateAround(TargetObject.position, Vector3.Cross(Vector3.up, CameraLatestPosition - TargetObject.position), Input.GetAxis("Mouse Y") * ROTATE_PARA);
-                    }
-                }
-                else
-                {
-                    MainCamera.transform.RotateAround(TargetObject.position, Vector3.Cross(Vector3.up, CameraLatestPosition - TargetObject.position), Input.GetAxis("Mouse Y") * ROTATE_PARA);
-                }
-                MainCamera.transform.rotation = Quaternion.Euler(MainCamera.transform.rotation.eulerAngles.x, MainCamera.transform.rotation.eulerAngles.y, 0);
-                MainCamera.transform.RotateAround(TargetObject.position, Vector3.up, Input.GetAxis("Mouse X") * ROTATE_PARA);
+                _targetY -= Input.GetAxis("Mouse Y") * YSpeed * 0.02f;
+                _targetY = ClampAngle(_targetY, yMinLimit, yMaxLimit);
             }
         }
+        _x = Mathf.SmoothDampAngle(_x, _targetX, ref _xVelocity, 0.3f);
+        if (pIsRotateY) _y = Mathf.SmoothDampAngle(_y, _targetY, ref _yVelocity, 0.3f);
+        else _y = _targetY;
+        Quaternion tRotation = Quaternion.Euler(_y, _x, 0);
+        Distance = Mathf.SmoothDamp(Distance, _targetDistance, ref _zoomVelocity, 0.5f);
+        Vector3 position = tRotation * new Vector3(0.0f, 0.0f, -Distance) + pTarget.position + TargetOffset;
+        MainCamera.transform.rotation = tRotation;
+        MainCamera.transform.position = position;
+        #endregion
+    }
 
-        //if (LeftMouseState == LEFT_MOUSE_DOWN)
-        //{
-        //    MouseMovePosition = Input.mousePosition;
-        //    MainCamera.transform.RotateAround(TargetObject.position, Vector3.up, (MouseMovePosition.x - MouseLatestPosition.x) * Time.deltaTime * ROTATE_PARA);
-        //    if (Vector3.Angle(Vector3.up, CameraLatestPosition - TargetObject.position) < 5.0f)
-        //    {
-        //        if (MouseMovePosition.y - MouseLatestPosition.y > 0)
-        //        {
-        //            MainCamera.transform.RotateAround(TargetObject.position, Vector3.Cross(Vector3.up, CameraLatestPosition - TargetObject.position), (MouseMovePosition.y - MouseLatestPosition.y) * Time.deltaTime * ROTATE_PARA);
-        //        }
+    /// <summary>
+    /// 在最小和最大数之间，并返回满足条件的值
+    /// </summary>
+    /// <returns></returns>
+    private float ClampAngle(float pAngle, float pMin, float pMax)
+    {
+        if (pAngle < -360) pAngle += 360;
+        if (pAngle > 360) pAngle -= 360;
+        return Mathf.Clamp(pAngle, pMin, pMax);
+    }
 
-        //    }
-        //    else if (MainCamera.transform.position.y < 1)
-        //    {
-        //        if (MouseMovePosition.y - MouseLatestPosition.y < 0)
-        //        {
-        //            MainCamera.transform.RotateAround(TargetObject.position, Vector3.Cross(Vector3.up, CameraLatestPosition - TargetObject.position), (MouseMovePosition.y - MouseLatestPosition.y) * Time.deltaTime * ROTATE_PARA);
-        //        }
-        //    }
-        //    else
-        //    {
-        //        MainCamera.transform.RotateAround(TargetObject.position, Vector3.Cross(Vector3.up, CameraLatestPosition - TargetObject.position), (MouseMovePosition.y - MouseLatestPosition.y) * Time.deltaTime * ROTATE_PARA);
-        //    }
-        //    MainCamera.transform.rotation = Quaternion.Euler(MainCamera.transform.rotation.eulerAngles.x, MainCamera.transform.rotation.eulerAngles.y, 0);
-        //}
+    /// <summary>
+    /// 摄像机复位
+    /// </summary>
+    /// <param name="pNeedCamera">是否需要复位</param>
+    private void ResetCameraTransform(ref bool pNeedCamera)
+    {
+        if (pNeedCamera)
+        {
+            MainCamera.transform.position = Vector3.Slerp(MainCamera.transform.position, _cameraBeginTransform.Position, 0.1f);
+            MainCamera.transform.rotation = Quaternion.Slerp(MainCamera.transform.rotation, _cameraBeginTransform.Rotation, 0.1f);
+            if (MainCamera.transform.position == _cameraBeginTransform.Position)
+            {
+                pNeedCamera = false;
+            }
+        }
     }
 }
