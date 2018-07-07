@@ -29,9 +29,10 @@ public class InputController : MonoBehaviour
     [Header("相机向上最大角度")][Range(0.0f, 90f)]
     public float YMaxLimit = 90f;
 
-    private StaticTransform _cameraBeginTransform;
-    private StaticTransform _cameraLastTransform;
-
+    public float FocusTargetX = 0f;
+    public float FocusTargetY = 0f;
+    public float FocusDistance = 10f;
+    
     /*
      （2018.07.07） 必要说明：============================================================================================================
      1.（_targetX，_targetY） 的变化是来源于屏幕的滑动，因此这里的X，Y是基于屏幕的二维轴，这个值表示将要旋转到的位置
@@ -53,29 +54,29 @@ public class InputController : MonoBehaviour
         另外，该计算，必须先算出摄像头Rotation和Distance的值才能计算出position的值（position = rotation * new Vector3(0.0f, 0.0f, -Distance)）
         ========================================================================================================================================
          */
-    //[SerializeField]
+
     private float _x = 0.0f;
-    //[SerializeField]
     private float _y = 0.0f;
-    //[SerializeField]
     private float _targetX = 0f;
-    //[SerializeField]
     private float _targetY = 0f;
-    //[SerializeField]
     private float _targetDistance = 0f;
-    //[SerializeField]
     private float _xVelocity = 1f;
-    //[SerializeField]
     private float _yVelocity = 1f;
-    //SerializeField]
     private float _zoomVelocity = 1f;
 
-    private bool _resetingCamera = false;
-    private bool _isHitFurniture = false;
     private bool _inspectFurniture = false;
+    private bool _isHitFurniture = false;
+
+    private bool _isClickSthDown = false;
+    private bool _isInspectClickSthElse = false;
+    private Vector3 MouseClickDownPosition;
 
     RaycastHit _hitInfo;
-    RaycastHit _ClickhitInfo;
+    //RaycastHit _ClickhitInfo;
+
+    private Transform _targetBeginTransform;
+    private StaticTransform _cameraBeginTransform;
+    private StaticTransform _cameraLastTransform;
 
     private enum MouseButton
     {
@@ -96,10 +97,17 @@ public class InputController : MonoBehaviour
         {
             get{ return _rotation;}
         }
-        public StaticTransform(Vector3 pPosition, Quaternion pRotation)
+        private float _distance;
+        public float Distance
+        {
+            get { return _distance; }
+        }
+
+        public StaticTransform(Vector3 pPosition, Quaternion pRotation, float pDistance)
         {
             _position = pPosition;
             _rotation = pRotation;
+            _distance = pDistance;
         }
     }
 
@@ -111,9 +119,14 @@ public class InputController : MonoBehaviour
         {
             MainCamera = Camera.main;
         }
-
-        _cameraBeginTransform = new StaticTransform(MainCamera.transform.position, MainCamera.transform.rotation);
-
+        if (TargetTransform != null)
+        {
+            _targetBeginTransform = TargetTransform;
+        }
+        else
+        {
+            Debug.LogError("没有设置任何观察目标");
+        }
         var angles = MainCamera.transform.eulerAngles;
         //初始化用于计算rotation的两个值，但是由于后面用Quaternion.Euler(_y, _x, 0)时是反的，所以这里也是反的
         _targetY = _y = angles.x;
@@ -122,39 +135,15 @@ public class InputController : MonoBehaviour
         //_targetDistance = Distance;
         _targetDistance = Mathf.Clamp(Vector3.Distance(MainCamera.transform.position, TargetTransform.position), MinDistance, MaxDistance); 
         Distance = Mathf.Clamp(_targetDistance,MinDistance,MaxDistance);
+        _cameraBeginTransform = new StaticTransform(MainCamera.transform.position, MainCamera.transform.rotation, Distance);
     }
 
     // Update is called once per frame
     void Update()
     {
-        ResetCameraTransform(ref _resetingCamera);
+        _isHitFurniture = IsHitGameObjectByTag(ColorController.TARGET_TAG);
 
-        if (_inspectFurniture)
-        {
-            MainCamera.transform.position = Vector3.Lerp(MainCamera.transform.position, new Vector3(_ClickhitInfo.transform.position.x, _ClickhitInfo.transform.position.y, _ClickhitInfo.transform.position.z - 15), 0.1f);
-            MainCamera.transform.LookAt(_ClickhitInfo.transform.position);
-            if (MainCamera.transform.position == _ClickhitInfo.transform.position)
-            {
-                _inspectFurniture = false;
-            }
-        }
-
-        OnMouseController(TargetTransform, AllowRotateY);
-
-
-        _isHitFurniture = false;
-        Ray ray = MainCamera.ScreenPointToRay(Input.mousePosition);
-        _hitInfo = new RaycastHit();
-        if (Physics.Raycast(ray, out _hitInfo))
-        {
-#if DEVELOPMENT_BUILD || UNITY_EDITOR
-            Debug.DrawLine(MainCamera.transform.position, _hitInfo.point, Color.red);
-#endif
-            if (_hitInfo.collider.gameObject.tag == ColorController.TARGET_TAG)
-            {
-                //_isHitFurniture = true;
-            }
-        }
+        AllMouseReaction(TargetTransform, AllowRotateY);
     }
 
     void LateUpdate()
@@ -164,14 +153,96 @@ public class InputController : MonoBehaviour
 
     public void ResetCamera()
     {
-        _resetingCamera = true;
+        _targetX = _cameraBeginTransform.Rotation.eulerAngles.y;
+        _targetY = _cameraBeginTransform.Rotation.eulerAngles.x;
+        _targetDistance = _cameraBeginTransform.Distance;
     }
 
     /// <summary>
     /// 响应鼠标所有操作
     /// In reaction to all mouse controll
     /// </summary>
-    private void OnMouseController(Transform pTarget, bool pIsRotateY)
+    private void AllMouseReaction(Transform pTarget, bool pIsRotateY)
+    {
+        
+        if (_inspectFurniture)
+        {
+            Debug.Log("在观看模式");
+            if (_isInspectClickSthElse)
+            {
+                if (Vector3.Distance(Input.mousePosition, MouseClickDownPosition) > 2f)
+                {
+                    Debug.Log("在观看模式下移开鼠标了");
+                    _isInspectClickSthElse = false;
+                }
+            }
+            if (Input.GetMouseButtonDown((int)MouseButton.LEFT_MOUSE_BUTTON))
+            {
+                Debug.Log("在观看模式下按下鼠标");
+                MouseClickDownPosition = Input.mousePosition;
+                _isInspectClickSthElse = true;
+            }
+            if (Input.GetMouseButtonUp((int)MouseButton.LEFT_MOUSE_BUTTON))
+            {
+                Debug.Log("在观看模式下松开鼠标");
+                if (_isInspectClickSthElse)
+                {
+                    Debug.Log("在观看模式下松开鼠标");
+                    _isInspectClickSthElse = false;
+                    //Debug.Log("点击了该物品");
+                    TargetTransform = _targetBeginTransform;
+                    _targetX = _cameraLastTransform.Rotation.eulerAngles.y;
+                    _targetY = _cameraLastTransform.Rotation.eulerAngles.x;
+                    _targetDistance = _cameraLastTransform.Distance;
+                    _inspectFurniture = false;
+                }
+            }
+        }
+        else
+        {
+            Debug.Log("在非观看模式");
+            if (_isClickSthDown)
+            {
+                if (Vector3.Distance(Input.mousePosition, MouseClickDownPosition) > 2f)
+                {
+                    Debug.Log("在非观看模式下移开鼠标了");
+                    _isClickSthDown = false;
+                }
+            }
+            if (IsHitGameObjectByTag(ColorController.TARGET_TAG))
+            {
+                if (Input.GetMouseButtonDown((int)MouseButton.LEFT_MOUSE_BUTTON))
+                {
+                    Debug.Log("在非观看模式下按下鼠标");
+                    MouseClickDownPosition = Input.mousePosition;
+                    _isClickSthDown = true;
+                }
+                if (Input.GetMouseButtonUp((int)MouseButton.LEFT_MOUSE_BUTTON))
+                {
+                    Debug.Log("在非观看模式下松开鼠标");
+                    if (_isClickSthDown)
+                    {
+                        Debug.Log("在非观看模式下松开鼠标时符合条件");
+                        _isClickSthDown = false;
+                        //Debug.Log("点击了该物品");
+                        _cameraLastTransform = new StaticTransform(MainCamera.transform.position, MainCamera.transform.rotation, Distance);
+                        TargetTransform = _hitInfo.transform;
+                        _targetX = FocusTargetX;
+                        _targetY = FocusTargetY;
+                        _targetDistance = FocusDistance;
+                        _inspectFurniture = true;
+                        _isInspectClickSthElse = false;
+                    }
+                }
+            }
+        }
+        OnMouseDrag(pTarget, pIsRotateY);
+    }
+
+
+
+
+    private void OnMouseDrag(Transform pTarget, bool pIsRotateY)
     {
         if (pTarget == null) return;
         #region 鼠标滚轮 MouseScrollWheel
@@ -185,8 +256,7 @@ public class InputController : MonoBehaviour
         #region 鼠标左键 MouseLeftButton
         if (Input.GetMouseButton((int)MouseButton.LEFT_MOUSE_BUTTON))
         {
-            _resetingCamera = false;
-            _inspectFurniture = false;
+            Debug.Log("触发了GetMouseButton");
             _targetX += Input.GetAxis("Mouse X") * XSpeed * 0.02f;
             if (pIsRotateY)
             {
@@ -201,19 +271,8 @@ public class InputController : MonoBehaviour
         Distance = Mathf.SmoothDamp(Distance, _targetDistance, ref _zoomVelocity, 0.5f);
         Vector3 position = tRotation * new Vector3(0.0f, 0.0f, -Distance) + pTarget.position + TargetOffset;//重点公式
         #endregion
-
-        #region 处理摄像头复位问题 Deal with reseting camera
-        if (_resetingCamera)
-        {
-            tRotation = _cameraBeginTransform.Rotation;
-            position = _cameraBeginTransform.Position;
-            return;
-        }
-        #endregion
-
         MainCamera.transform.rotation = tRotation;
         MainCamera.transform.position = position;
-        
     }
 
     /// <summary>
@@ -227,22 +286,21 @@ public class InputController : MonoBehaviour
         return Mathf.Clamp(pAngle, pMin, pMax);
     }
 
-    /// <summary>
-    /// 摄像机复位
-    /// </summary>
-    /// <param name="pNeedCamera">是否需要复位</param>
-    private void ResetCameraTransform(ref bool pNeedCamera)
+    private bool IsHitGameObjectByTag(string pTag)
     {
-        if (pNeedCamera)
+        bool tIsHitFurniture = false;
+        Ray ray = MainCamera.ScreenPointToRay(Input.mousePosition);
+        _hitInfo = new RaycastHit();
+        if (Physics.Raycast(ray, out _hitInfo))
         {
-
-            MainCamera.transform.position = Vector3.Slerp(MainCamera.transform.position, _cameraBeginTransform.Position, 0.1f);
-            MainCamera.transform.rotation = Quaternion.Slerp(MainCamera.transform.rotation, _cameraBeginTransform.Rotation, 0.1f);
-           
-            if (MainCamera.transform.position == _cameraBeginTransform.Position)
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            Debug.DrawLine(MainCamera.transform.position, _hitInfo.point, Color.red);
+#endif
+            if (_hitInfo.collider.gameObject.tag == pTag)
             {
-                pNeedCamera = false;
+                tIsHitFurniture = true;
             }
         }
+        return tIsHitFurniture;
     }
 }
