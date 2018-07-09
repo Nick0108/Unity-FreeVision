@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 public class InputController : MonoBehaviour
 {
@@ -78,6 +79,9 @@ public class InputController : MonoBehaviour
     private StaticTransform _cameraBeginTransform;
     private StaticTransform _cameraLastTransform;
 
+    private Dictionary<Transform, GameObject> _pointOutLineDic;
+    private GameObject _CurSelectGameObject;
+
     private enum MouseButton
     {
         LEFT_MOUSE_BUTTON = 0,
@@ -136,6 +140,7 @@ public class InputController : MonoBehaviour
         _targetDistance = Mathf.Clamp(Vector3.Distance(MainCamera.transform.position, TargetTransform.position), MinDistance, MaxDistance); 
         Distance = Mathf.Clamp(_targetDistance,MinDistance,MaxDistance);
         _cameraBeginTransform = new StaticTransform(MainCamera.transform.position, MainCamera.transform.rotation, Distance);
+        _pointOutLineDic = new Dictionary<Transform, GameObject>();
     }
 
     // Update is called once per frame
@@ -164,74 +169,77 @@ public class InputController : MonoBehaviour
     /// </summary>
     private void AllMouseReaction(Transform pTarget, bool pIsRotateY)
     {
-        
-        if (_inspectFurniture)
+        if (!EventSystem.current.IsPointerOverGameObject())
         {
-            Debug.Log("在观看模式");
-            if (_isInspectClickSthElse)
+            //Debug.Log("非击在UI上了");
+            if (_inspectFurniture)
             {
-                if (Vector3.Distance(Input.mousePosition, MouseClickDownPosition) > 2f)
-                {
-                    Debug.Log("在观看模式下移开鼠标了");
-                    _isInspectClickSthElse = false;
-                }
-            }
-            if (Input.GetMouseButtonDown((int)MouseButton.LEFT_MOUSE_BUTTON))
-            {
-                Debug.Log("在观看模式下按下鼠标");
-                MouseClickDownPosition = Input.mousePosition;
-                _isInspectClickSthElse = true;
-            }
-            if (Input.GetMouseButtonUp((int)MouseButton.LEFT_MOUSE_BUTTON))
-            {
-                Debug.Log("在观看模式下松开鼠标");
+                //Debug.Log("在观看模式");
                 if (_isInspectClickSthElse)
                 {
-                    Debug.Log("在观看模式下松开鼠标");
-                    _isInspectClickSthElse = false;
-                    //Debug.Log("点击了该物品");
-                    TargetTransform = _targetBeginTransform;
-                    _targetX = _cameraLastTransform.Rotation.eulerAngles.y;
-                    _targetY = _cameraLastTransform.Rotation.eulerAngles.x;
-                    _targetDistance = _cameraLastTransform.Distance;
-                    _inspectFurniture = false;
+                    if (Vector3.Distance(Input.mousePosition, MouseClickDownPosition) > 2f)
+                    {
+                        //Debug.Log("在观看模式下移开鼠标了");
+                        _isInspectClickSthElse = false;
+                    }
                 }
-            }
-        }
-        else
-        {
-            Debug.Log("在非观看模式");
-            if (_isClickSthDown)
-            {
-                if (Vector3.Distance(Input.mousePosition, MouseClickDownPosition) > 2f)
-                {
-                    Debug.Log("在非观看模式下移开鼠标了");
-                    _isClickSthDown = false;
-                }
-            }
-            if (IsHitGameObjectByTag(ColorController.TARGET_TAG))
-            {
                 if (Input.GetMouseButtonDown((int)MouseButton.LEFT_MOUSE_BUTTON))
                 {
-                    Debug.Log("在非观看模式下按下鼠标");
+                    //Debug.Log("在观看模式下按下鼠标");
                     MouseClickDownPosition = Input.mousePosition;
-                    _isClickSthDown = true;
+                    _isInspectClickSthElse = true;
                 }
                 if (Input.GetMouseButtonUp((int)MouseButton.LEFT_MOUSE_BUTTON))
                 {
-                    Debug.Log("在非观看模式下松开鼠标");
-                    if (_isClickSthDown)
+                    //Debug.Log("在观看模式下松开鼠标");
+                    if (_isInspectClickSthElse)
                     {
-                        Debug.Log("在非观看模式下松开鼠标时符合条件");
-                        _isClickSthDown = false;
-                        //Debug.Log("点击了该物品");
-                        _cameraLastTransform = new StaticTransform(MainCamera.transform.position, MainCamera.transform.rotation, Distance);
-                        TargetTransform = _hitInfo.transform;
-                        _targetX = FocusTargetX;
-                        _targetY = FocusTargetY;
-                        _targetDistance = FocusDistance;
-                        _inspectFurniture = true;
+                        //Debug.Log("在观看模式下松开鼠标");
                         _isInspectClickSthElse = false;
+                        //Debug.Log("点击了该物品");
+                        TargetTransform = _targetBeginTransform;
+                        _targetX = _cameraLastTransform.Rotation.eulerAngles.y;
+                        _targetY = _cameraLastTransform.Rotation.eulerAngles.x;
+                        _targetDistance = _cameraLastTransform.Distance;
+                        _inspectFurniture = false;
+                    }
+                }
+            }
+            else
+            {
+                //Debug.Log("在非观看模式");
+                if (_isClickSthDown)
+                {
+                    if (Vector3.Distance(Input.mousePosition, MouseClickDownPosition) > 2f)
+                    {
+                        //Debug.Log("在非观看模式下移开鼠标了");
+                        _isClickSthDown = false;
+                    }
+                }
+                if (IsHitGameObjectByTag(ColorController.TARGET_TAG))
+                {
+                    if (Input.GetMouseButtonDown((int)MouseButton.LEFT_MOUSE_BUTTON))
+                    {
+                        //Debug.Log("在非观看模式下按下鼠标");
+                        MouseClickDownPosition = Input.mousePosition;
+                        _isClickSthDown = true;
+                    }
+                    if (Input.GetMouseButtonUp((int)MouseButton.LEFT_MOUSE_BUTTON))
+                    {
+                        //Debug.Log("在非观看模式下松开鼠标");
+                        if (_isClickSthDown)
+                        {
+                            //Debug.Log("在非观看模式下松开鼠标时符合条件");
+                            _isClickSthDown = false;
+                            //Debug.Log("点击了该物品");
+                            _cameraLastTransform = new StaticTransform(MainCamera.transform.position, MainCamera.transform.rotation, Distance);
+                            TargetTransform = _hitInfo.transform;
+                            _targetX = FocusTargetX;
+                            _targetY = FocusTargetY;
+                            _targetDistance = FocusDistance;
+                            _inspectFurniture = true;
+                            _isInspectClickSthElse = false;
+                        }
                     }
                 }
             }
@@ -256,7 +264,7 @@ public class InputController : MonoBehaviour
         #region 鼠标左键 MouseLeftButton
         if (Input.GetMouseButton((int)MouseButton.LEFT_MOUSE_BUTTON))
         {
-            Debug.Log("触发了GetMouseButton");
+            //Debug.Log("触发了GetMouseButton");
             _targetX += Input.GetAxis("Mouse X") * XSpeed * 0.02f;
             if (pIsRotateY)
             {
@@ -293,12 +301,34 @@ public class InputController : MonoBehaviour
         _hitInfo = new RaycastHit();
         if (Physics.Raycast(ray, out _hitInfo))
         {
-#if DEVELOPMENT_BUILD || UNITY_EDITOR
-            Debug.DrawLine(MainCamera.transform.position, _hitInfo.point, Color.red);
-#endif
             if (_hitInfo.collider.gameObject.tag == pTag)
             {
                 tIsHitFurniture = true;
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+                Debug.DrawLine(MainCamera.transform.position, _hitInfo.point, Color.red);
+                //Vector3 length = _hitInfo.transform.GetComponent<MeshFilter>().mesh.bounds.size;
+                //float xlength = length.x * transform.lossyScale.x;
+                //float ylength = length.y * transform.lossyScale.y;
+                //float zlength = length.z * transform.lossyScale.z;
+                //Debug.Log("xlength = "+ xlength);
+                //Debug.Log("ylength = " + ylength);
+                //Debug.Log("zlength = " + zlength);
+                //Vector3 tlengthVector3 = _hitInfo.transform.GetComponent<Collider>().bounds.size;
+                //Debug.Log("tlengthVector3" + tlengthVector3);
+                if (_pointOutLineDic.ContainsKey(_hitInfo.transform))
+                {
+                    _CurSelectGameObject = _pointOutLineDic[_hitInfo.transform];
+                }
+                else
+                {
+                    Vector3 tlengthVector3 = _hitInfo.transform.GetComponent<Collider>().bounds.size;
+                    GameObject tNewGO = GameObject.Instantiate(GameObject.CreatePrimitive(PrimitiveType.Cube), _hitInfo.transform, false);
+                    tNewGO.transform.position = _hitInfo.transform.GetComponent<Collider>().bounds.center;
+                    tNewGO.transform.localScale = tlengthVector3;
+                    _pointOutLineDic.Add(_hitInfo.transform, tNewGO);
+                    _CurSelectGameObject = tNewGO;
+                }
+#endif
             }
         }
         return tIsHitFurniture;
